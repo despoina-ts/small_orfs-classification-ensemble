@@ -12,9 +12,12 @@ machine learning models to evaluate classification performance.
 
 ## Repository Structure
 
-small-orfs-classification-ensemble/
-├── build_dataset.py
-└── train_models.py
+mkdir small-orfs-classification-ensemble
+cd small-orfs-classification-ensemble
+
+touch build_dataset.py
+touch train_models.py
+touch README.md
 
 
 - `build_dataset.py`  
