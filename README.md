@@ -76,7 +76,8 @@ Install dependencies:
 pip install pandas numpy scikit-learn
 ```
 ---
-How to Run 
-python build_dataset.py
-python train_models.py
+## How to run
+
+```bash
+python build_dataset.py && python train_models.py
 
