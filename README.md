@@ -78,7 +78,9 @@ pip install pandas numpy scikit-learn
 ```
 ---
 ## How to run
+```bash
 
 python build_dataset.py --tool-dir data --pattern sample_tool_outputs.csv --true-labels data/sample_true_labels.csv
 python train_models.py
+```
 
