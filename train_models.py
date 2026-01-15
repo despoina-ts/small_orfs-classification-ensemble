@@ -20,65 +20,35 @@ np.random.seed(0)
 
 def sensitivity_specificity(
     y_true: pd.Series,
-    y_pred: np.ndarray
+    y_pred: np.ndarray,
 ) -> Tuple[float, float, np.ndarray]:
     """
-    Compute sensitivity (recall for the positive class), specificity, and the confusion matrix.
+    Compute sensitivity (recall for the positive class), specificity, and confusion matrix.
 
-    Sensitivity is computed as recall with pos_label=1.
-    Specificity is computed as TN / (TN + FP).
-
-    Parameters
-    ----------
-    y_true : pandas.Series
-        Ground-truth labels.
-    y_pred : numpy.ndarray
-        Predicted labels.
-
-    Returns
-    -------
-    tuple of (float, float, numpy.ndarray)
-        sensitivity : float
-            Recall for the positive class (label = 1).
-        specificity : float
-            True negative rate for the negative class (label = 0).
-        cm : numpy.ndarray
-            Confusion matrix with shape (2, 2).
+    Notes
+    -----
+    This function assumes binary labels encoded as 0/1 where:
+    - 1 is the positive class
+    - 0 is the negative class
     """
-    cm = confusion_matrix(y_true, y_pred)
+    cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
+
     sensitivity = recall_score(y_true, y_pred, pos_label=1)
-    specificity = cm[0][0] / (cm[0][0] + cm[0][1])
+
+    tn = cm[0, 0]
+    fp = cm[0, 1]
+    specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+
     return sensitivity, specificity, cm
 
 
 def evaluate(name: str, y_true: pd.Series, y_pred: np.ndarray) -> None:
     """
     Print standard classification metrics for a model.
-
-    This function prints:
-    - accuracy
-    - confusion matrix
-    - full classification report (precision/recall/f1 per class)
-    - sensitivity (recall for label=1)
-    - specificity (true negative rate for label=0)
-
-    Parameters
-    ----------
-    name : str
-        A human-readable model name used in printed output.
-    y_true : pandas.Series
-        Ground-truth labels.
-    y_pred : numpy.ndarray
-        Predicted labels.
-
-    Returns
-    -------
-    None
-        This function prints metrics to stdout and does not return a value.
     """
     acc = accuracy_score(y_true, y_pred)
     sens, spec, cm = sensitivity_specificity(y_true, y_pred)
-    report = classification_report(y_true, y_pred)
+    report = classification_report(y_true, y_pred, labels=[0, 1])
 
     print(f"{name} results")
     print(f"Accuracy: {acc:.3f}")
@@ -92,28 +62,28 @@ def evaluate(name: str, y_true: pd.Series, y_pred: np.ndarray) -> None:
 def main() -> None:
     """
     Load the dataset, train multiple classifiers, and evaluate them on a test split.
-
-    Workflow
-    --------
-    1) Load `merged_data.csv`
-    2) Split features/labels using the column `TRUE_LABELS`
-    3) One-hot encode all feature columns
-    4) Train Decision Tree, KNN, and Random Forest models
-    5) Evaluate each model on the test set
-    6) Print label distribution for train/test splits
-
-    Returns
-    -------
-    None
-        This function orchestrates the workflow and prints results to stdout.
     """
     df = pd.read_csv("merged_data.csv")
 
-    y: pd.Series = df["TRUE_LABELS"]
-    X: pd.DataFrame = df.drop(columns=["TRUE_LABELS"])
+    # Convert TRUE_LABELS into a binary target.
+    # This makes the script robust whether TRUE_LABELS is "coding/noncoding" or already 0/1.
+    if df["TRUE_LABELS"].dtype == object:
+        mapping = {"coding": 0, "noncoding": 1}
+        y = df["TRUE_LABELS"].astype(str).str.strip().str.lower().map(mapping)
+    else:
+        y = df["TRUE_LABELS"]
 
-    # One-hot encode all feature columns (categorical + any non-numeric features)
-    X = pd.get_dummies(X, columns=X.columns)
+    # Drop rows with unknown labels (if any)
+    valid = y.isin([0, 1])
+    df = df.loc[valid].copy()
+    y = y.loc[valid].astype(int)
+
+    X = df.drop(columns=["TRUE_LABELS"])
+
+    # One-hot encode non-numeric columns only (safer than encoding everything)
+    cat_cols = X.select_dtypes(include=["object", "string"]).columns.tolist()
+    if cat_cols:
+        X = pd.get_dummies(X, columns=cat_cols, drop_first=False)
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.5, random_state=0, stratify=y
@@ -135,11 +105,10 @@ def main() -> None:
     evaluate("KNN (test)", y_test, pred_knn)
     evaluate("Random Forest (test)", y_test, pred_rf)
 
-    # Print label distribution for sanity-checking the split
-    train_label0 = (y_train == 0).sum()
-    train_label1 = (y_train == 1).sum()
-    test_label0 = (y_test == 0).sum()
-    test_label1 = (y_test == 1).sum()
+    train_label0 = int((y_train == 0).sum())
+    train_label1 = int((y_train == 1).sum())
+    test_label0 = int((y_test == 0).sum())
+    test_label1 = int((y_test == 1).sum())
 
     print(f"Training set: {train_label0} label-0, {train_label1} label-1")
     print(f"Testing set:  {test_label0} label-0, {test_label1} label-1")
